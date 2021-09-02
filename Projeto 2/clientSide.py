@@ -1,52 +1,38 @@
-#####################################################
-# Camada Física da Computação
-#Carareto
-#11/08/2020
-#Aplicação
+####################################################
+#Camada Física da Computação
+#Davi Reis Vieira de Souza
+#27/08/2021
+#Client Side
 ####################################################
 
-
-#esta é a camada superior, de aplicação do seu software de comunicação serial UART.
-#para acompanhar a execução e identificar erros, construa prints ao longo do código! 
-
-
 from enlace import *
-import numpy as np
 import time
 import random
 
-# voce deverá descomentar e configurar a porta com através da qual ira fazer comunicaçao
-#   para saber a sua porta, execute no terminal :
 #   python -m serial.tools.list_ports
-# se estiver usando windows, o gerenciador de dispositivos informa a porta
-
-#use uma das 3 opcoes para atribuir à variável a porta usada
-#serialName = "/dev/ttyACM0"           # Ubuntu (variacao de)
-#serialName = "/dev/tty.usbmodem1411" # Mac    (variacao de)
-serialName = "COM4"                  # Windows(variacao de)
-
+serialName = "COM4"
 
 def main():
     try:
-        clientCom = enlace('COM4')
+        clientCom = enlace(serialName,57600)
         clientCom.enable()
         clientCom.fisica.flush()
 
-        print('Comunicação Iniciada')
+        print('Comunicação Iniciada...')
         initialTime = time.time()
 
         commandList = [b'\x00\xFF',b'\x00',b'\x0F',b'\xF0',b'\xFF\x00',b'\xFF']
-        message = [commandList[random.randint(0,5)] for i in range(random.randint(10,30))]
-        print('Mensagem a ser enviada:\n',message, '\n')
-        
-        txBuffer = message
+
+        commands = [(commandList[random.randint(0,5)]) for i in range(random.randint(10,30))]
+        message = [(i+b'\xee') for i in commands]
+        txBuffer = (b''.join(message))
         txBufferLen = len(txBuffer)
 
-        print('Tamanho do Arquivo a ser enviado: {} bytes'.format(txBufferLen))
+        print('Comandos a serem enviados:\n{}\nTotal de Comandos: {}\n'.format(commands,len(commands)))
+        print('Mensagem a ser enviada:\n{}.\nTamanho da mensagem ENVIADA: {} bytes.\n'.format(txBuffer,txBufferLen))
   
         print('Enviando início do protocolo...')
         txBufferHeader = txBufferLen.to_bytes(2, byteorder="big")
-        print('txBufferHeader',txBufferHeader)
         clientCom.sendData(txBufferHeader)
         
         print('Aguardando Handshake...')
@@ -56,28 +42,39 @@ def main():
             print('Comunicação estabelecida!')
             
             print('Enviando dados para o Server...')
-            clientCom.sendData(np.asarray(txBuffer)) 
+            clientCom.sendData((txBuffer)) 
 
-            print('Aguardando confirmação do envio...')
+            print('Aguardando confirmação do envio...\n')
             rxBufferResponse, nRx = clientCom.getData(txBufferLen)
-            
+
             if rxBufferResponse == txBuffer:
-                print('Informação enviada é a mesma que a recebida')
+                print('Informação Enviada é IGUAL a recebida!')
             else:
-                print('Informação Enviada divergente da recebida')
+                print('Informação Enviada DIVERGENTE da recebida.')
+
             
+            print('\nResponse recebida pelo server:\n{}\nTamanho da informação RECEBIDA: {} bytes.\n'.format(rxBufferResponse,nRx))
+
+            numberOfCommands = len(commands).to_bytes(2, byteorder="big")
+            numberOfCommandsResponse, nRx = clientCom.getData(2)
+            lenNumberOfCommandsResponse = int.from_bytes(numberOfCommandsResponse, "big")
             
-            print('Response recebida pelo server:\n{}\nTamanho da informação: {} bytes'.format(rxBufferResponse,nRx))
+            print('\nNúmero de Comandos Enviados: {} comandos.\nNúmero de Comandos Recebidos: {} comandos.\n'.format(len(commands),lenNumberOfCommandsResponse))
+            
+            if numberOfCommands == numberOfCommandsResponse:
+                print('Número de comandos Enviados é IGUAL a recebida!')
+            else:
+                print('Número de comandos Enviados é DIVERGENTE da recebida.')
 
             finalTime = time.time()
             totalTime = finalTime - initialTime
             velocity = totalTime/txBufferLen           
         
-            print("-------------------------")
+            print("-------------------------------")
             print("Comunicação encerrada")
             print(f'Tempo total da aplicação:\n{totalTime}s')
             print(f'Velocidade:\n{velocity} bytes/s')
-            print("-------------------------")
+            print("-------------------------------")
         else:
             print('Comunicação mal estabelecida!')
 
@@ -93,6 +90,5 @@ def main():
         print('Client Finalizado na força!')
         
 
-    #so roda o main quando for executado do terminal ... se for chamado dentro de outro modulo nao roda
 if __name__ == "__main__":
     main()
