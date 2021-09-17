@@ -1,11 +1,12 @@
 from enlace import *
 import time
+from tqdm import tqdm
 
 class Server:
 
-    def __init__(self, fileName='received_image.png', serialName= 'COM3', baudRate= 115200):
+    def __init__(self,fileName='received_image.png',serialName= 'COM3',baudRate= 115200):
        self.serverId = 12
-       self.clientId = 14
+       self.clientId = 0
        self.fileName = fileName
        self.serialName = serialName
        self.baudRate = baudRate
@@ -41,6 +42,7 @@ class Server:
         if h0 == 1:
             self.numberOfPackages = h3
             self.fileId = h5
+            self.clientId = h1
             self.packageAnalyzed = h4
             self.currentPackage = h4
             self.currentPackageSize = h5
@@ -59,21 +61,22 @@ class Server:
     def handshakePromise(self):
         print('Esperando Head Protocol...')
         rxBufferHeader, nRxHeaderLen = self.serverCom.getData(14)
-        print('Tamanho do Head: {}.'.format(nRxHeaderLen))
+        print('Tamanho do Head: {} bytes.'.format(nRxHeaderLen))
         header = self.bufferDecoding(rxBufferHeader)
         
         if header[0]==1 and header[2]==self.serverId:
-            print('Head Protocol recebido!')
+            print('Head Protocol recebido! Client ID: {}.'
+            .format(self.clientId))
             newHeader = self.changeHeaderByte(rxBufferHeader,0,2)
 
-        print('Enviando Handshake...')
+        print('Enviando Handshake...\n')
         self.serverCom.sendData(newHeader)
 
 
     def fileBufferIntegrity(self,package):
         header = self.bufferDecoding(package)
         if package[-4:]==self.eopEncoded and header[4]== self.packageAnalyzed+1:
-            print('sequencial',header[4])
+            # print('sequencial',header[4])
             self.packageAnalyzed=header[4]
             return True
         else:
@@ -81,8 +84,10 @@ class Server:
 
 
     def receiveFileBuffer(self):
+        pbar = tqdm(total=self.numberOfPackages,unit='bytes',unit_scale=128,
+        desc='Bytes Recebidos')
         while len(self.packages)<self.numberOfPackages:
-            print(len(self.packages),self.numberOfPackages)
+            # print(len(self.packages),self.numberOfPackages)
             self.serverCom.fisica.flush()
             rxBufferHeader, nRxHeaderLen = self.serverCom.getData(128)
             fileBufferIntegrity=self.fileBufferIntegrity(rxBufferHeader)
@@ -93,8 +98,10 @@ class Server:
                 self.packages.append(rxBufferHeader)
             else:
                 responseBuffer=self.changeHeaderByte(rxBufferHeader,0,6)
-            print('RECEBIDO:',rxBufferHeader, len(self.packages))
+            # print('RECEBIDO:',rxBufferHeader, len(self.packages))
             self.serverCom.sendData(responseBuffer)
+            pbar.update(1)
+        pbar.close()
 
 
     def startCommunication(self):
@@ -102,7 +109,7 @@ class Server:
         self.receiveFileBuffer()
 
     def fileDecoding(self):
-        print('Iniciando decodificação do arquivo recebido...')
+        print('\nIniciando decodificação do arquivo recebido...')
 
         def cleanPackage(package):
             packageSize=self.bufferDecoding(package)[5]
@@ -111,42 +118,51 @@ class Server:
 
         cleanedFileBuffer=[cleanPackage(i) for i in self.packages]
         buffer=bytes.join(b'',cleanedFileBuffer)
-        received_file=open('files/received_image.png','wb')
+        received_file=open('files/receivedFiles/{}.png'.format(self.fileId),'wb')
         received_file.write(buffer)
         received_file.close()
-        print('Arquivo received_image.png criado em "files".')
+        print('Arquivo {}.png (Size: {} bytes) criado em "files".'
+        .format(self.fileId,len(buffer)))
 
 
     def closeConnection(self):
-        print('Fechando conexão com o cliente...')
+        print('\nFechando conexão com o cliente...')
         time.sleep(0.05)
         self.serverCom.sendData(self.packages[-1])
-        print('Conexão fechada.')
+        print('Conexão fechada com client de ID: {}.'.format(self.clientId))
+        self.rxBuffer = self.rxBufferLen = 0
+        self.fileId = 0
+        self.numberOfPackages = 0
+        self.packages = []
+        self.packageAnalyzed = 0
+        self.currentPackage = 0
+        self.currentPackageSize = 0
         self.killProcess()
 
 
     def startServer(self):
         try:
-            self.serverCom = enlace(self.serialName,self.baudRate)
-            self.serverCom.enable()
-            self.serverCom.fisica.flush()
+            while True:
+                self.serverCom = enlace(self.serialName,self.baudRate)
+                self.serverCom.enable()
+                self.serverCom.fisica.flush()
 
-            print("""
-            --------------------------------
-            ------Comunicação Iniciada------
-            --------- Porta: {} ----------
-            -------- Baud Rate: {} ------
-            --------------------------------
-            """.format(self.serialName,self.baudRate))
-            self.initialTime = time.time()
+                print("""
+                --------------------------------
+                ------Comunicação Iniciada------
+                --------- Porta: {} ----------
+                ------ Baud Rate: {} ------
+                --------------------------------
+                """.format(self.serialName,self.baudRate))
+                self.initialTime = time.time()
 
-            print('Servidor aberto.')
+                print('Servidor aberto.')
 
-            self.startCommunication()
+                self.startCommunication()
 
-            self.fileDecoding()
+                self.fileDecoding()
 
-            self.closeConnection()
+                self.closeConnection()
             
         except Exception as erro:
             print("Ops! Erro no Server! :-\\\n",erro)

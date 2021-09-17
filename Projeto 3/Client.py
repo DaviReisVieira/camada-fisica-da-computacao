@@ -1,9 +1,11 @@
 from enlace import *
 import time
+from tqdm import tqdm
+import os
 
 class Client:
 
-    def __init__(self, fileName='send_image.png', serialName= 'COM4', baudRate= 115200):
+    def __init__(self, fileName='1.png', serialName= 'COM4', baudRate= 115200):
        self.serverId = 12
        self.clientId = 14
        self.fileName = fileName
@@ -45,7 +47,8 @@ class Client:
         numberOfPackages = self.txBufferLen//114
         self.numberOfPackages = numberOfPackages if self.txBufferLen%114==0 else numberOfPackages+1
         
-        header = self.headerEnconding(1,0)+self.eopEncoded
+        fileNameId=int(self.fileName.split('.')[0])
+        header = self.headerEnconding(1,0,fileNameId)+self.eopEncoded
         self.packages.append(header)            
             
         filePackages = [self.txBuffer[i:i+114] for i in range(0,self.txBufferLen,114)]
@@ -91,7 +94,7 @@ class Client:
             rxBuffer, nRx = self.clientCom.getData(14,5)
             
             if not rxBuffer[0]:
-                clientRetry = input("Servidor inativo. Tentar novamente? s/n: ")
+                clientRetry = input("\n\nServidor inativo. Tentar novamente? s/n: ")
                 if clientRetry == 's':
                     sendingHeader = True
                 elif clientRetry == 'n':
@@ -100,15 +103,15 @@ class Client:
             else:
                 sendingHeader = False
                 if rxBuffer[0] == 2 and rxBuffer[1:] == i[1:]:
-                    print('Handshake concluído com sucesso!')
+                    print('Handshake concluído com sucesso! Server ID: {}'.format(rxBuffer[2]))
                     return True
                 else:
                     print('Handshake mal sucedido...')
                     return False
     
 
-    def sendPackage(self,package,lastPackage):
-        print('\nPackage to Sent: ',package)
+    def sendPackage(self,package,index):
+        # print('\nEnviando pacote: {}/{}'.format(index,len(self.packages)))
         self.clientCom.fisica.flush()
         packageNotSent=True
         while packageNotSent:
@@ -126,7 +129,7 @@ class Client:
 
             header = self.bufferDecoding(rxBuffer)
             if rxBuffer[1:] == package[1:] and header[0]==4:
-                print('RECEBIDO OK')
+                # print('RECEBIDO OK')
                 packageNotSent=False
                 return package       
 
@@ -134,30 +137,33 @@ class Client:
     def startTransmission(self):
         currentPackage = lastPackage = []
         handshakeSuccessful = False
-        for i in self.packages:
-            currentPackage = i
-            if i == self.packages[0]:  
-                print('Enviando início do protocolo...')
-                handshakeReponse = self.sendHandshake(i)
+        pbar = tqdm(total=self.numberOfPackages,unit='packages',desc='Packages Enviados:')
+        for i, package in enumerate(self.packages):
+            currentPackage = package
+            if package == self.packages[0]:  
+                print('\nEnviando início do protocolo...')
+                handshakeReponse = self.sendHandshake(package)
                 if handshakeReponse:
-                    lastPackage = i
+                    lastPackage = package
                     handshakeSuccessful=True
                 else:
                     self.killProcess()
 
-            if handshakeSuccessful and i != self.packages[0]:
-                response = self.sendPackage(i,lastPackage)
+            if handshakeSuccessful and package != self.packages[0]:
+                response = self.sendPackage(package,i)
                 lastPackage = response
+                pbar.update(1)
+        pbar.close()
 
     
     def closeConnection(self):
-        print('Aguardando confirmação de recebimento...')
-        print(len(self.packages[-1]))
+        print('\nAguardando confirmação de recebimento...')
         rxBuffer, nRx = self.clientCom.getData(len(self.packages[-1]))
-        print(rxBuffer,nRx)
         if rxBuffer==self.packages[-1]:
             print('Todos os pacotes foram recebidos com sucesso.')
-            self.killProcess()
+        else:
+            print('Erro ao enviar todos os arquivos...')
+        self.killProcess()
 
 
 
@@ -171,12 +177,12 @@ class Client:
             --------------------------------
             ------Comunicação Iniciada------
             --------- Porta: {} ----------
-            -------- Baud Rate: {} ------
+            ------ Baud Rate: {} ------
             --------------------------------
             """.format(self.serialName,self.baudRate))
             self.initialTime = time.time()
 
-            file = open("files/{}".format(self.fileName),"rb")
+            file = open("files/sendFiles/{}".format(self.fileName),"rb")
             self.txBuffer=file.read()
             self.txBufferLen=len(self.txBuffer)
             file.close()
@@ -210,14 +216,12 @@ class Client:
 
 
 def main():
-    client = Client()
+    files = os.listdir('files/sendFiles')
+    for i,value in enumerate(files):
+        print('{} - {}'.format(i,value))
+    fileSelectedId = int(input('Escolha um arquivo: '))
+    client = Client(files[fileSelectedId])
     client.startClient()
 
 if __name__ == "__main__":
     main()
-    # original=b'`\x82'
-    # str=b'\x02\x0e\x0c%%\x02\x00\x00\x00\x00`\x82\x02\x05\x00\x07'
-    # test='abcdefdh'
-    # print(str[10:-4],str[5],len(str[10:-4]))
-
-# print(int(4106).to_bytes(2, byteorder='big'))
