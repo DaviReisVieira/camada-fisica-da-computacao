@@ -118,9 +118,13 @@ class Server:
 
 
     def closeConnection(self):
-        pass
+        print('Fechando conexão com o cliente...')
+        time.sleep(0.05)
+        self.serverCom.sendData(self.packages[-1])
+        print('Conexão fechada.')
+        self.killProcess()
 
-    
+
     def startServer(self):
         try:
             self.serverCom = enlace(self.serialName,self.baudRate)
@@ -144,8 +148,6 @@ class Server:
 
             self.closeConnection()
             
-            self.serverCom.disable()
-
         except Exception as erro:
             print("Ops! Erro no Server! :-\\\n",erro)
             self.serverCom.disable()
@@ -157,6 +159,7 @@ class Server:
 
     def killProcess(self):
         print('Server Finalizado.')
+        self.serverCom.fisica.flush()
         self.serverCom.disable()
 
 

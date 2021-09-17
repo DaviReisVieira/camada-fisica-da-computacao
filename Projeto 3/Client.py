@@ -149,6 +149,17 @@ class Client:
                 response = self.sendPackage(i,lastPackage)
                 lastPackage = response
 
+    
+    def closeConnection(self):
+        print('Aguardando confirmação de recebimento...')
+        print(len(self.packages[-1]))
+        rxBuffer, nRx = self.clientCom.getData(len(self.packages[-1]))
+        print(rxBuffer,nRx)
+        if rxBuffer==self.packages[-1]:
+            print('Todos os pacotes foram recebidos com sucesso.')
+            self.killProcess()
+
+
 
     def startClient(self):
         try:
@@ -178,6 +189,8 @@ class Client:
             self.bufferEncoding()
 
             self.startTransmission()
+
+            self.closeConnection()
             
             self.clientCom.disable()
 
@@ -192,6 +205,7 @@ class Client:
 
     def killProcess(self):
         print('Client Finalizado.')
+        self.clientCom.fisica.flush()
         self.clientCom.disable()
 
 
