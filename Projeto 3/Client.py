@@ -5,7 +5,7 @@ import os
 
 class Client:
 
-    def __init__(self, fileName='1.png', serialName= 'COM4', baudRate= 115200):
+    def __init__(self, fileName, serialName= 'COM4', baudRate= 115200):
        self.serverId = 12
        self.clientId = 14
        self.fileName = fileName
@@ -220,7 +220,8 @@ def main():
     for i,value in enumerate(files):
         print('{} - {}'.format(i,value))
     fileSelectedId = int(input('Escolha um arquivo: '))
-    client = Client(files[fileSelectedId])
+    serialName = input('Escolha a porta: (COM3, COM4,...): ')
+    client = Client(files[fileSelectedId],serialName)
     client.startClient()
 
 if __name__ == "__main__":

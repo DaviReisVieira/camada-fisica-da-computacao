@@ -4,10 +4,9 @@ from tqdm import tqdm
 
 class Server:
 
-    def __init__(self,fileName='received_image.png',serialName= 'COM3',baudRate= 115200):
+    def __init__(self, serialName= 'COM3',baudRate= 115200):
        self.serverId = 12
        self.clientId = 0
-       self.fileName = fileName
        self.serialName = serialName
        self.baudRate = baudRate
        self.eopEncoded = b'\x02\x05\x00\x07'
@@ -68,9 +67,8 @@ class Server:
             print('Head Protocol recebido! Client ID: {}.'
             .format(self.clientId))
             newHeader = self.changeHeaderByte(rxBufferHeader,0,2)
-
-        print('Enviando Handshake...\n')
-        self.serverCom.sendData(newHeader)
+            print('Enviando Handshake...\n')
+            self.serverCom.sendData(newHeader)
 
 
     def fileBufferIntegrity(self,package):
@@ -180,7 +178,8 @@ class Server:
 
 
 def main():
-    server = Server()
+    serialName = input('Escolha a porta: (COM3, COM4,...): ')
+    server = Server(serialName)
     server.startServer()
 
 if __name__ == "__main__":
