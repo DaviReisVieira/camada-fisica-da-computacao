@@ -132,7 +132,7 @@ class Client:
             self.clientCom.sendData(package)
             self.log.logLine('envio',package[0],len(package),package[4],package[3], package[8:10])
 
-            rxBuffer, nRx = self.clientCom.getData(14,20)
+            rxBuffer, nRx = self.clientCom.getData(14,5)
 
             if not rxBuffer[0]:                
                 clientRetry = input("[Package] Servidor inativo. Tentar novamente? s/n: ")
