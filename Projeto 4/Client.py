@@ -3,6 +3,7 @@ from enlace import *
 import time
 from tqdm import tqdm
 import os
+from crccheck.crc import Crc16
 
 class Client:
 
@@ -19,8 +20,14 @@ class Client:
        self.caseType = caseType
        self.log = Log('Client',caseType)
 
+
+    def crcCalc(self, data):
+        crcResult = Crc16.calc(data)
+        crcEncoded = crcResult.to_bytes(2, "big")
+        return crcEncoded
+
     
-    def headerEnconding(self,typeOfMessage:int,numberOfPackage:int,packageSize:int=1):
+    def headerEnconding(self,typeOfMessage:int,numberOfPackage:int,packageSize:int=1,crc=b'\x00\x00'):
         '''
         h0 – tipo de mensagem
         h1 – id do cliente
@@ -40,10 +47,8 @@ class Client:
         h5 = (packageSize).to_bytes(1,byteorder="big")
         h6 = (0).to_bytes(1,byteorder="big")
         h7 = (0).to_bytes(1,byteorder="big")
-        h8 = (0).to_bytes(1,byteorder="big")
-        h9 = (0).to_bytes(1,byteorder="big")
 
-        return h0+h1+h2+h3+h4+h5+h6+h7+h8+h9
+        return h0+h1+h2+h3+h4+h5+h6+h7+crc
 
 
     def bufferEncoding(self):
@@ -58,10 +63,12 @@ class Client:
 
         def packageEncoding(i:int):
             body = filePackages[i]
-            header = self.headerEnconding(3,i+1,len(body))
-            
+
             if len(body)!=114:
                 body=body+ (0).to_bytes(114-len(body), byteorder="big")
+
+            crc = self.crcCalc(body)
+            header = self.headerEnconding(3,i+1,len(filePackages[i]),crc)
 
             return header+body+self.eopEncoded
 
@@ -78,10 +85,9 @@ class Client:
         h5 = buffer[5]
         h6 = buffer[6]
         h7 = buffer[7]
-        h8 = buffer[8]
-        h9 = buffer[9]
+        crc = buffer[7:9]
         
-        return [h0,h1,h2,h3,h4,h5,h6,h7,h8,h9]
+        return [h0,h1,h2,h3,h4,h5,h6,h7,crc]
     
 
     def changeHeaderByte(self,header,position, value):
@@ -94,21 +100,21 @@ class Client:
         sendingHeader= True
         while sendingHeader:
             self.clientCom.sendData(i)
-            self.log.logLine('envio',i[0],len(i),i[4],i[3])
+            self.log.logLine('envio',i[0],len(i),i[4],i[3],i[8:10])
             
             print('Aguardando Handshake...')
             rxBuffer, nRx = self.clientCom.getData(14,5)
 
             
             if not rxBuffer[0]:
-                clientRetry = input("\n\nServidor inativo. Tentar novamente? s/n: ")
+                clientRetry = input("\n\n[Handshake] Servidor inativo. Tentar novamente? s/n: ")
                 if clientRetry == 's':
                     sendingHeader = True
                 elif clientRetry == 'n':
                     sendingHeader = False
                     return False
             else:
-                self.log.logLine('receb',rxBuffer[0],len(i),rxBuffer[4],rxBuffer[3])
+                self.log.logLine('receb',rxBuffer[0],len(i),rxBuffer[4],rxBuffer[3],rxBuffer[8:10])
                 sendingHeader = False
                 if rxBuffer[0] == 2 and rxBuffer[10:-4] == i[10:-4]:
                     print('Handshake concluído com sucesso! Server ID: {}'.format(rxBuffer[2]))
@@ -124,33 +130,35 @@ class Client:
         packageNotSent=True
         while packageNotSent:
             self.clientCom.sendData(package)
-            self.log.logLine('envio',package[0],len(package),package[4],package[3])
+            self.log.logLine('envio',package[0],len(package),package[4],package[3], package[8:10])
 
-            rxBuffer, nRx = self.clientCom.getData(len(package),5)
+            rxBuffer, nRx = self.clientCom.getData(14,20)
 
             if not rxBuffer[0]:                
-                clientRetry = input("Servidor inativo. Tentar novamente? s/n: ")
+                clientRetry = input("[Package] Servidor inativo. Tentar novamente? s/n: ")
                 if clientRetry == 's':
                     packageNotSent = True
                     return index
                 elif clientRetry == 'n':
                     timeOutBuffer = self.changeHeaderByte(package,0,5)
                     self.clientCom.sendData(timeOutBuffer)
-                    self.log.logLine('envio',timeOutBuffer[0],len(timeOutBuffer),timeOutBuffer[4],timeOutBuffer[3])
+                    self.log.logLine('envio',timeOutBuffer[0],len(timeOutBuffer),timeOutBuffer[4],timeOutBuffer[3],timeOutBuffer[8:10])
                     self.killProcess()
             else:
                 self.log.logLine('receb',rxBuffer[0],len(rxBuffer),rxBuffer[4],rxBuffer[3])
 
                 header = self.bufferDecoding(rxBuffer)
-
                 if header[0]==6:
-                    return header[4]-1
+                    return header[6]
 
                 if header[0]==5:
                     print('\nERRO: Server Desligado.')
                     self.killProcess()
 
-                if rxBuffer[10:-4] == package[10:-4] and header[0]==4:
+                crcServer = rxBuffer[8:10]
+                crcClient = self.crcCalc(package[10:-4]) 
+
+                if crcClient==crcServer and header[0]==4:
                     packageNotSent=False
                     return index+1       
 
@@ -162,9 +170,10 @@ class Client:
         errorSimulation = True
         while i <= len(self.packages)-1:
 
-            if self.caseType==2 and i==1 and errorSimulation:
-                    errorSimulation = False
-                    i+=1
+            if self.caseType==2 and i==5 and errorSimulation:
+                print('\nAVISO: ERRO CASO 2 IMPLANTADO.')
+                errorSimulation = False
+                i+=1
 
             package=self.packages[i]
             if package == self.packages[0]:  
@@ -254,7 +263,7 @@ def main():
     for i,value in enumerate(files):
         print('{} - {}'.format(i,value))
     fileSelectedId = int(input('Escolha um arquivo: '))
-    client = Client(files[fileSelectedId],serialName,caseType=2)
+    client = Client(files[fileSelectedId],serialName,caseType=5)
     client.startClient()
 
 if __name__ == "__main__":

@@ -2,6 +2,7 @@ from Log import Log
 from enlace import *
 import time
 from tqdm import tqdm
+from crccheck.crc import Crc16
 
 class Server:
 
@@ -38,8 +39,7 @@ class Server:
         h5 = buffer[5]
         h6 = buffer[6]
         h7 = buffer[7]
-        h8 = buffer[8]
-        h9 = buffer[9]
+        crc = buffer[7:9]
 
         self.currentPackage = buffer
 
@@ -54,7 +54,7 @@ class Server:
             self.currentPackageId = h4
             self.currentPackageSize = h5
         
-        return [h0,h1,h2,h3,h4,h5,h6,h7,h8,h9]
+        return [h0,h1,h2,h3,h4,h5,h6,h7,crc]
 
     def changeHeaderByte(self,header,position, value):
         newValue = (value).to_bytes(1, byteorder='big')
@@ -84,12 +84,23 @@ class Server:
             self.closeConnection()
 
 
+    def crcCalc(self, data):
+        crcResult = Crc16.calc(data)
+        crcEncoded = crcResult.to_bytes(2, "big")
+        return crcEncoded
+
+
     def fileBufferIntegrity(self,package):
         header = self.bufferDecoding(package)
+        
+        crcClient = package[8:10]
+        crcServer = self.crcCalc(package[10:-4])   
+
         rules = [
             header[0] == 3,
             package[-4:] == self.eopEncoded,
             header[4] == self.packageAnalyzed+1,
+            crcClient == crcServer
         ]
 
         if all(rules):
@@ -102,6 +113,7 @@ class Server:
     def receiveFileBuffer(self):
         pbar = tqdm(total=self.numberOfPackages,unit='bytes',unit_scale=128,
         desc='Bytes Recebidos')
+        
         while len(self.packages)<self.numberOfPackages:
             self.serverCom.fisica.flush()
             rxBuffer, _ = self.serverCom.getData(128,20)
@@ -109,14 +121,21 @@ class Server:
             if not rxBuffer[0]:
                 print('ERRO: Client Inativo.(Timeout)')
                 response=self.changeHeaderByte(self.currentPackage,0,5)
+                response=response[:10]+self.eopEncoded
                 self.serverCom.sendData(response)
-                self.log.logLine('envio',response[0],len(response),response[4],response[3])
+                self.log.logLine('envio',response[0],len(response),response[4],response[3],response[8:10])
 
                 self.closeConnection()
             else:
-                self.log.logLine('receb',rxBuffer[0],len(rxBuffer),rxBuffer[4],rxBuffer[3])
+                self.log.logLine('receb',rxBuffer[0],len(rxBuffer),rxBuffer[4],rxBuffer[3],rxBuffer[8:10])
 
             fileIntegrity=self.fileBufferIntegrity(rxBuffer)
+
+
+            if fileIntegrity[1][0]==5:
+                    print('\nERRO: Client Desligado.')
+                    self.closeConnection()
+
             response = 0
             if fileIntegrity[0]:               
                 response=self.changeHeaderByte(rxBuffer,0,4)
@@ -125,9 +144,12 @@ class Server:
                 pbar.update(1)
             else:
                 response=self.changeHeaderByte(rxBuffer,0,6)
-            # print('RECEBIDO:',rxBufferHeader, len(self.packages))
+                response=self.changeHeaderByte(response,6,self.packageAnalyzed+1)
+
+            response=response[:10]+self.eopEncoded
+
             self.serverCom.sendData(response)
-            self.log.logLine('envio',response[0],len(response),response[4],response[3])
+            self.log.logLine('envio',response[0],len(response),response[4],response[3],response[8:10])
 
         pbar.close()
 
@@ -158,8 +180,9 @@ class Server:
         time.sleep(0.05)
         if len(self.packages)==self.numberOfPackages:
             response = self.packages[-1]
+            response=self.changeHeaderByte(response,0,4)    
             self.serverCom.sendData(response)
-            self.log.logLine('envio',response[0],len(response),response[4],response[3])
+            self.log.logLine('envio',response[0],len(response),response[4],response[3],response[8:10])
 
         print('Conexão fechada com client de ID: {}.'.format(self.clientId))
         self.log.logClose()
@@ -217,7 +240,7 @@ def main():
     serialName = input('Escolha a porta(Enter: COM3): (COM3, COM4,...): ')
     if not serialName:
         serialName='COM3'
-    server = Server(serialName,caseType=2)
+    server = Server(serialName,caseType=5)
     server.startServer()
 
 if __name__ == "__main__":
