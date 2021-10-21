@@ -31,7 +31,7 @@ int sw_uart_receive_byte(due_sw_uart *uart, char* data) {
     //Serial.println("esperando byte");
   }
 
-  Serial.println("\nchegou byte");
+  // Serial.println("\nchegou byte");
   // confirm start bit
   _sw_uart_wait_half_T(uart);
   // HIGH = invalid

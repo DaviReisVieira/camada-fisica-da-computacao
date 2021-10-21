@@ -18,7 +18,7 @@ void receive_byte() {
   char data;
   int code = sw_uart_receive_byte(&uart, &data);
   if(code == SW_UART_SUCCESS) {
-     Serial.print(data);
+     Serial.println(data);
   } else if(code == SW_UART_ERROR_PARITY) {
     Serial.println("\nPARITY ERROR");
   } else {
