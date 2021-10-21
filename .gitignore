@@ -128,3 +128,4 @@ dmypy.json
 # Pyre type checker
 .pyre/
 /Projeto 3/__pycache__
+/Projeto 6/.vscode
