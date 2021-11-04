@@ -60,12 +60,6 @@ def main():
    
     yAudio = audio[:,0]
     ## Calcula e exibe o Fourier do sinal audio. como saida tem-se a amplitude e as frequencias
-    xf, yf = signal.calcFFT(yAudio, Fs)
-    plt.figure("F(y)")
-    plt.plot(xf,yf)
-    plt.grid()
-    plt.title('Fourier audio')
-
     X, Y = signal.calcFFT(yAudio, Fs)
 
     picoFrequenias = []
@@ -116,6 +110,14 @@ def main():
     
   
     ## Exibe gráficos
+    plt.plot(t,yAudio)
+    plt.grid()
+    plt.title('Áudio Gravado')
+    plt.xlabel('Tempo (s)')
+    plt.ylabel('Amplitude')
+    plt.show()
+
+    signal.plotFFT(yAudio, Fs)
     plt.show()
 
 if __name__ == "__main__":
