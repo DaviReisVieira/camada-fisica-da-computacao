@@ -68,9 +68,10 @@ def main():
     print('Normalizando Áudio...')
     audioMax = np.max(np.abs(yAudio))
     yAudioNormalizado = yAudio/audioMax
+    listaTempo=np.arange(0,samplesAudio/samplerate,1/samplerate)
 
-    plt.figure("Gráfico 1: Sinal de áudio original normalizado – domínio do tempo")
-    plt.plot(yAudioNormalizado)
+    plt.figure("Gráfico 1 - Sinal de áudio original normalizado – domínio do tempo")
+    plt.plot(listaTempo,yAudioNormalizado)
     plt.grid()
     plt.title('Áudio Normalizado vs Tempo (s)')
     plt.xlabel('Tempo (s)')
@@ -88,8 +89,8 @@ def main():
     sd.play(yfiltrado)
     sd.wait()
 
-    plt.figure("Gráfico 2: Sinal de áudio filtrado – domínio do tempo")
-    plt.plot(yfiltrado)
+    plt.figure("Gráfico 2 - Sinal de áudio filtrado – domínio do tempo")
+    plt.plot(listaTempo,yfiltrado)
     plt.grid()
     plt.title('Áudio Filtrado vs Tempo (s)')
     plt.xlabel('Tempo (s)')
@@ -98,9 +99,10 @@ def main():
     # FFT Sinal filtrado
     #####################
     X, Y = calcFFT(yfiltrado, samplerate)
-    plt.figure("Gráfico 3: Sinal de áudio filtrado – domínio da frequência")
+    plt.figure("Gráfico 3 - Sinal de áudio filtrado – domínio da frequência")
     plt.plot(X, np.abs(Y))
     plt.grid()
+    plt.xlabel('Frequência (Hz)')
     plt.title('Sinal de áudio filtrado – domínio da frequência')
 
     #####################
@@ -123,8 +125,8 @@ def main():
     # plt.plot(yAM[0:500])
     # plt.grid()
 
-    plt.figure("Gráfico 4: Sinal de áudio modulado – domínio do tempo")
-    plt.plot(yAM)
+    plt.figure("Gráfico 4 - Sinal de áudio modulado – domínio do tempo")
+    plt.plot(listaTempo,yAM)
     plt.grid()
     plt.title('Áudio Filtrado vs Tempo (s)')
     plt.xlabel('Tempo (s)')
@@ -135,8 +137,9 @@ def main():
 
     # Fourier mensagem
     XAM, YAM = calcFFT(yAM, samplerate)
-    plt.figure("Gráfico 5: sinal de áudio modulado – domínio da frequência")
+    plt.figure("Gráfico 5 - sinal de áudio modulado – domínio da frequência")
     plt.plot(XAM, np.abs(YAM))
+    plt.xlabel('Frequência (Hz)')
     plt.grid()
     plt.title('Sinal de áudio modulado – domínio da frequência')
 
@@ -157,14 +160,16 @@ def main():
 
     XAMDemod, YAMDemod = calcFFT(yDemod, samplerate)
     XAMDemodFiltrado, YAMDemodFiltrado = calcFFT(yDemodFiltrado, samplerate)
-    plt.figure("Gráfico 6: Sinal de áudio demodulado")
+    plt.figure("Gráfico 6 - Sinal de áudio demodulado")
     plt.plot(XAMDemod, np.abs(YAMDemod))
     plt.grid()
+    plt.xlabel('Frequência (Hz)')
     plt.title('Sinal de áudio demodulado')
 
-    plt.figure("Gráfico 7: Sinal de áudio demodulado e filtrado")
+    plt.figure("Gráfico 7 - Sinal de áudio demodulado e filtrado")
     plt.plot(XAMDemodFiltrado, np.abs(YAMDemodFiltrado))
     plt.grid()
+    plt.xlabel('Frequência (Hz)')
     plt.title('Sinal de áudio demodulado e filtrado')
 
 
